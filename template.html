@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prédictions de matchs</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#667085;--ac:#0f9d58;--ac2:#2563eb;--bd:#e4e7ec;--bar:#e4e7ec;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--card:#181c25;--tx:#eef0f4;--mut:#9aa3b2;--bd:#262c38;--bar:#262c38}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#181c25;--tx:#eef0f4;--mut:#9aa3b2;--bd:#262c38;--bar:#262c38}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:4px 0 2px}
+.sub{color:var(--mut);font-size:.85rem;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:.8rem;color:var(--mut);margin:8px 0 4px}
+select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:1rem}
+button{width:100%;margin-top:14px;padding:13px;border:0;border-radius:10px;background:var(--ac);color:#fff;font-size:1rem;font-weight:600}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:.95rem}
+.row b{font-variant-numeric:tabular-nums}
+.bar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:8px 0 6px;background:var(--bar)}
+.bar i{display:block}
+.leg{display:flex;justify-content:space-between;font-size:.85rem}
+.pill{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:4px 10px;margin:3px 4px 3px 0;font-size:.85rem}
+.pb{height:8px;background:var(--bar);border-radius:4px;overflow:hidden;margin-top:3px}
+.pb i{display:block;height:100%;background:var(--ac2)}
+.note{font-size:.78rem;color:var(--mut);margin-top:8px}
+#res{display:none}
+.br{display:grid;grid-template-columns:96px 1fr 124px;gap:8px;align-items:center;font-size:.85rem;padding:3px 0}.br b{text-align:right;font-variant-numeric:tabular-nums;font-size:.8rem}.br .pb{margin:0}.mut{color:var(--mut);font-weight:400}
+.hm{display:grid;grid-template-columns:22px repeat(6,1fr);gap:3px;font-size:.72rem;text-align:center;font-variant-numeric:tabular-nums}.hm div{padding:7px 0;border-radius:6px;background:var(--bar)}.hm .h{background:none;color:var(--mut);padding:7px 0}
+h3{font-size:.85rem;margin:12px 0 4px}
+.chk{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--tx);margin-top:12px}.chk input{width:18px;height:18px}
+.warn{background:var(--bg);border:1px solid var(--bd);border-left:4px solid #e6a100;border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:12px;display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>⚽ Prédictions de matchs</h1>
+<div class="sub" id="maj"></div>
+<div class="card">
+<label for="lg">Championnat de l’équipe à domicile</label><select id="lg"></select>
+<label for="eh">Équipe à domicile</label><select id="eh"></select>
+<label for="lg2">Championnat de l’équipe à l’extérieur</label><select id="lg2"></select>
+<label for="ea">Équipe à l’extérieur</label><select id="ea"></select>
+<label class="chk"><input type="checkbox" id="neu"> Terrain neutre (finale, match de coupe…)</label>
+<button id="go">Prédire</button>
+</div>
+<div id="res">
+<div class="warn" id="warn"></div>
+<div class="card"><h2>Résultat</h2><div id="r1x2"></div></div>
+<div class="card"><h2>Buts</h2><div id="rbuts"></div></div>
+<div class="card"><h2>Score final : cumul des possibilités</h2><div id="rsc"></div></div>
+<div class="card"><h2>Carte des scores</h2><div id="rhm"></div></div>
+<div class="card"><h2>Total de buts</h2><div id="rtot"></div></div>
+<div class="card"><h2>Écart de buts</h2><div id="rgd"></div></div>
+<div class="card"><h2>Buts de chaque équipe</h2><div id="rteam"></div></div>
+<div class="card" id="cinj" style="display:none"><h2>Joueurs indisponibles</h2><div id="rinj"></div></div>
+<div class="card"><h2>Mi-temps</h2><div id="rmt"></div></div>
+<div class="card"><h2>Tirs, corners, cartons et fautes</h2><div id="rcc"></div></div>
+</div>
+<p class="note">Ce sont des probabilités calculées à partir des matchs passés, pas des certitudes. Les penalties ne sont pas inclus (données indisponibles). À utiliser comme aide à l’analyse seulement.</p>
+</main>
+<script>
+var D=__DATA__, AV=__AVENIR__;
+function $(i){return document.getElementById(i)}
+var INJ=null;try{fetch("injuries.json",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(j){INJ=j}).catch(function(){})}catch(e){}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var LAB={i:"Blessé",d:"Incertain",s:"Suspendu"};
+function injBlock(n){var l=INJ&&INJ.teams&&INJ.teams[n];if(!l)return "";return '<h3>'+esc(n)+'</h3>'+(l.length?l.map(function(p){return '<div class="row"><span>'+esc(p.n)+' <span class="mut">· '+esc(p.t||"")+'</span></span><b>'+(LAB[p.s]||"")+'</b></div>'}).join(""):'<div class="note">Aucun joueur signalé.</div>')}
+function fill(sel,L){sel.innerHTML="";L.act.forEach(function(i){var o=document.createElement("option");o.value=i;o.textContent=L.teams[i];sel.appendChild(o)})}
+function leagues(sel){Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].nom;sel.appendChild(o)})}
+leagues($("lg"));leagues($("lg2"));
+function upd(){var a=D[$("lg").value];fill($("eh"),a);fill($("ea"),D[$("lg2").value]);if($("lg").value===$("lg2").value)$("ea").selectedIndex=1;
+$("maj").textContent=a.n+" matchs analysés dans ce championnat, données jusqu’au "+a.maj.split("-").reverse().join("/");$("res").style.display="none"}
+$("lg").onchange=function(){$("lg2").value=$("lg").value;upd()};$("lg2").onchange=upd;upd();
+function mx(t,i,j,L1,L2,neu,useOff){var m1=L1.m[t],m2=L2.m[t],o1=useOff?L1.off/2:0,o2=useOff?L2.off/2:0,c=(m1.c+m2.c)/2,h=neu?0:(m1.h+m2.h)/2;
+return [Math.exp(c+m1.a[i]+o1-m2.d[j]-o2+h),Math.exp(c+m2.a[j]+o2-m1.d[i]-o1)]}
+function pois(l,n){var p=[Math.exp(-l)];for(var k=1;k<=n;k++)p.push(p[k-1]*l/k);return p}
+function matrix(a,b){var N=10,pa=pois(a,N),pb=pois(b,N),M=[],s=0,r=-0.05,i,j;
+for(i=0;i<=N;i++){M.push([]);for(j=0;j<=N;j++){M[i].push(pa[i]*pb[j])}}
+M[0][0]*=1-a*b*r;M[0][1]*=1+a*r;M[1][0]*=1+b*r;M[1][1]*=1-r;
+for(i=0;i<=N;i++)for(j=0;j<=N;j++)s+=M[i][j];
+for(i=0;i<=N;i++)for(j=0;j<=N;j++)M[i][j]/=s;return M}
+function bars(it){var m=0;it.forEach(function(r){m=Math.max(m,r[1])});return it.map(function(r){return '<div class="br"><span>'+r[0]+'</span><div class="pb"><i style="width:'+(r[1]/m*100)+'%"></i></div><b>'+(r[1]*100).toFixed(1)+' %'+(r[2]?' <span class="mut">'+r[2]+'</span>':"")+'</b></div>'}).join("")}
+function pc(x){return Math.round(x*100)+" %"}
+function row(a,b){return '<div class="row"><span>'+a+'</span><b>'+b+'</b></div>'}
+$("go").onclick=function(){
+var L1=D[$("lg").value],L2=D[$("lg2").value],i=+$("eh").value,j=+$("ea").value,neu=$("neu").checked,same=$("lg").value===$("lg2").value;
+if(same&&i===j){alert("Choisis deux équipes différentes.");return}
+var H=L1.teams[i],A=L2.teams[j],g=mx("buts",i,j,L1,L2,neu,true),M=matrix(g[0],g[1]),w=0,d=0,l=0,o={0.5:0,1.5:0,2.5:0,3.5:0,4.5:0},bt=0,sc=[],T=[0,0,0,0,0,0,0],G=[0,0,0,0,0,0,0],HG=[0,0,0,0],AG=[0,0,0,0],x,y;
+for(x=0;x<M.length;x++)for(y=0;y<M.length;y++){var p=M[x][y];
+if(x>y)w+=p;else if(x===y)d+=p;else l+=p;
+[0.5,1.5,2.5,3.5,4.5].forEach(function(s){if(x+y>s)o[s]+=p});T[Math.min(x+y,6)]+=p;G[Math.max(-3,Math.min(3,x-y))+3]+=p;HG[Math.min(x,3)]+=p;AG[Math.min(y,3)]+=p;
+if(x>0&&y>0)bt+=p;if(x<7&&y<7)sc.push([p,x,y])}
+sc.sort(function(a,b){return b[0]-a[0]});
+var wn=$("warn"),msg=[];
+if(!same)msg.push("⚠️ Deux championnats différents : le niveau relatif est estimé à partir des notes Elo (relevé du 7 novembre 2026). C’est moins fiable qu’à l’intérieur d’un même championnat, et je n’ai pas pu le tester sur le passé.");
+if(neu)msg.push("Terrain neutre : pas d’avantage du domicile.");
+wn.style.display=msg.length?"block":"none";wn.innerHTML=msg.join("<br>");
+$("r1x2").innerHTML='<div class="leg"><span>'+H+'</span><span>Nul</span><span>'+A+'</span></div><div class="bar"><i style="width:'+w*100+'%;background:var(--ac)"></i><i style="width:'+d*100+'%;background:var(--mut)"></i><i style="width:'+l*100+'%;background:var(--ac2)"></i></div><div class="leg"><b>'+pc(w)+'</b><b>'+pc(d)+'</b><b>'+pc(l)+'</b></div>';
+$("rbuts").innerHTML=row("Buts attendus",g[0].toFixed(2)+" – "+g[1].toFixed(2)+" (total "+(g[0]+g[1]).toFixed(2)+")")+row("Aucun but (0-0)",pc(M[0][0]))+row("Plus / moins de 0,5 but",pc(o[0.5])+" / "+pc(1-o[0.5]))+row("Plus / moins de 1,5 buts",pc(o[1.5])+" / "+pc(1-o[1.5]))+row("Plus / moins de 2,5 buts",pc(o[2.5])+" / "+pc(1-o[2.5]))+row("Plus / moins de 3,5 buts",pc(o[3.5])+" / "+pc(1-o[3.5]))+row("Plus / moins de 4,5 buts",pc(o[4.5])+" / "+pc(1-o[4.5]))+row("Les deux équipes marquent",pc(bt));
+var cum=0,top=sc.slice(0,8),ex=sc[0];
+$("rsc").innerHTML='<div class="row"><span>Score le plus probable</span><b>'+ex[1]+' – '+ex[2]+' ('+(ex[0]*100).toFixed(1)+' %)</b></div><div class="row"><span>Score moyen sur toutes les possibilités</span><b>'+g[0].toFixed(2)+' – '+g[1].toFixed(2)+' ≈ '+Math.round(g[0])+' – '+Math.round(g[1])+'</b></div><h3>Les scores qui s’additionnent</h3>'+top.map(function(s){cum+=s[0];return '<div class="row"><span>'+s[1]+' – '+s[2]+'</span><b>'+(s[0]*100).toFixed(1)+' % <span class="mut">· cumul '+Math.round(cum*100)+' %</span></b></div>'}).join("");
+var hm='<div class="hm"><div class="h"></div>',mm=0,a,u,v;
+for(u=0;u<6;u++){hm+='<div class="h">'+u+'</div>';for(v=0;v<6;v++)mm=Math.max(mm,M[u][v])}
+for(u=0;u<6;u++){hm+='<div class="h">'+u+'</div>';for(v=0;v<6;v++){a=M[u][v]/mm;hm+='<div style="background:rgba(37,99,235,'+(0.08+a*0.85).toFixed(2)+');color:'+(a>.55?"#fff":"var(--tx)")+'">'+(M[u][v]*100).toFixed(1)+'</div>'}}
+$("rhm").innerHTML=hm+'</div><div class="note">Lignes : buts de '+H+' (domicile) · Colonnes : buts de '+A+' (extérieur) · valeurs en %</div>';
+var cs=0;
+$("rtot").innerHTML=bars(T.map(function(p,n){cs+=p;return [n===6?"6 buts et +":n+(n<2?" but":" buts"),p,"· ≤"+n+" : "+Math.round(cs*100)+" %"]}));
+$("rgd").innerHTML=bars([["Domicile +3 et +",G[6]],["Domicile +2",G[5]],["Domicile +1",G[4]],["Match nul",G[3]],["Extérieur +1",G[2]],["Extérieur +2",G[1]],["Extérieur +3 et +",G[0]]])+'<div class="note">« Domicile +2 » = '+H+' gagne par exactement 2 buts.</div>';
+function lab(n){return n===3?"3 buts et +":n+(n<2?" but":" buts")}
+$("rteam").innerHTML='<h3>'+H+'</h3>'+bars(HG.map(function(p,n){return [lab(n),p]}))+'<h3>'+A+'</h3>'+bars(AG.map(function(p,n){return [lab(n),p]}));
+var c=mx("corners",i,j,L1,L2,neu,false),k=mx("jaunes",i,j,L1,L2,neu,false),rg=mx("rouges",i,j,L1,L2,neu,false),fa=mx("fautes",i,j,L1,L2,neu,false),ti=mx("tirs",i,j,L1,L2,neu,false),ca=mx("cadres",i,j,L1,L2,neu,false),hg=mx("mt",i,j,L1,L2,neu,true),HM=matrix(hg[0],hg[1]),hw=0,hd=0,hl=0,ho0=0,ho1=0,q,z;
+for(q=0;q<HM.length;q++)for(z=0;z<HM.length;z++){var hp=HM[q][z];if(q>z)hw+=hp;else if(q===z)hd+=hp;else hl+=hp;if(q+z>0.5)ho0+=hp;if(q+z>1.5)ho1+=hp}
+$("rmt").innerHTML=row("Buts attendus en 1ère mi-temps",hg[0].toFixed(2)+" – "+hg[1].toFixed(2)+" (total "+(hg[0]+hg[1]).toFixed(2)+")")+row("Victoire "+H+" à la mi-temps",pc(hw))+row("Nul à la mi-temps",pc(hd))+row("Victoire "+A+" à la mi-temps",pc(hl))+row("Plus / moins de 0,5 but en 1ère mi-temps",pc(ho0)+" / "+pc(1-ho0))+row("Plus / moins de 1,5 buts en 1ère mi-temps",pc(ho1)+" / "+pc(1-ho1));
+$("rcc").innerHTML=row("Tirs attendus",ti[0].toFixed(1)+" – "+ti[1].toFixed(1)+" (total "+(ti[0]+ti[1]).toFixed(1)+")")+row("Tirs cadrés attendus",ca[0].toFixed(1)+" – "+ca[1].toFixed(1)+" (total "+(ca[0]+ca[1]).toFixed(1)+")")+row("Corners attendus",c[0].toFixed(1)+" – "+c[1].toFixed(1)+" (total "+(c[0]+c[1]).toFixed(1)+")")+row("Cartons jaunes attendus",k[0].toFixed(1)+" – "+k[1].toFixed(1)+" (total "+(k[0]+k[1]).toFixed(1)+")")+row("Cartons rouges attendus",rg[0].toFixed(2)+" – "+rg[1].toFixed(2))+row("Au moins un carton rouge",pc(1-Math.exp(-(rg[0]+rg[1]))))+row("Fautes attendues",fa[0].toFixed(1)+" – "+fa[1].toFixed(1)+" (total "+(fa[0]+fa[1]).toFixed(1)+")");
+var ib=injBlock(H)+injBlock(A);$("cinj").style.display=ib?"block":"none";$("rinj").innerHTML=ib+(ib&&INJ.maj?'<div class="note">Source : Fantasy Premier League (officiel), mis à jour le '+esc(INJ.maj)+'.</div>':"");
+$("res").style.display="block";$("res").scrollIntoView({behavior:"smooth"})};
+</script>
+</body>
+</html>
